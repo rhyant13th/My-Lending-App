@@ -168,9 +168,24 @@
 <body>
 <div id="root"></div>
 
+<!-- Firebase Web SDK Libraries -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
 <script>
-const STORAGE_KEY = 'lending_ledger_borrowers_v3';
-const CASH_KEY = 'lending_ledger_cash_v1';
+// Firebase Project Configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyAH7xX2HUDS5irC5NY_wUhnQEEqqyehdMg",
+  authDomain: "my-lending-app-146a6.firebaseapp.com",
+  projectId: "my-lending-app-146a6",
+  storageBucket: "my-lending-app-146a6.firebasestorage.app",
+  messagingSenderId: "1042308112337",
+  appId: "1:1042308112337:web:0279ee867a1c3d28ee8af0"
+};
+
+// Initialize Firebase & Firestore Database
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
 
 let currentTab = 'monitoring';
 let borrowers = [];
@@ -346,32 +361,40 @@ function recalculateCash(){
  return running;
 }
 
+// Real-time Cloud Sync from Firebase
 function loadData(){
- try{
- const savedB = localStorage.getItem(STORAGE_KEY);
- borrowers = savedB ? JSON.parse(savedB) : [
-  { id: '1', name: 'KRISTIAN CASCALLA', principal: 35000, rate: 0.10, dateLoaned: '2025-09-17', createdAt: '2025-09-17', notes: '', payments: [], customMonths: [] },
-  { id: '2', name: 'DIANNE MESINA', principal: 5000, rate: 0.10, dateLoaned: '2025-09-19', createdAt: '2025-09-19', notes: '', payments: [], customMonths: [] }
- ];
- const savedC = localStorage.getItem(CASH_KEY);
- cashLedger = savedC ? JSON.parse(savedC) : [
-  { id: 'c1', date: '2026-03-31', particulars: 'Initial Cash Balance', amount: 11460 }
- ];
- if(borrowers.length > 0 && !activeId) activeId = borrowers[0].id;
- }catch(e){ 
- borrowers = [];
- cashLedger = [];
- }
- render();
+ db.collection("app_data").doc("ledger").onSnapshot((doc) => {
+   if (doc.exists) {
+     const data = doc.data();
+     borrowers = data.borrowers || [];
+     cashLedger = data.cashLedger || [];
+     if (borrowers.length > 0 && !activeId) activeId = borrowers[0].id;
+     render();
+   } else {
+     // Seed initial sample data if cloud storage is empty
+     borrowers = [
+       { id: '1', name: 'KRISTIAN CASCALLA', principal: 35000, rate: 0.10, dateLoaned: '2025-09-17', createdAt: '2025-09-17', notes: '', payments: [], customMonths: [] },
+       { id: '2', name: 'DIANNE MESINA', principal: 5000, rate: 0.10, dateLoaned: '2025-09-19', createdAt: '2025-09-19', notes: '', payments: [], customMonths: [] }
+     ];
+     cashLedger = [
+       { id: 'c1', date: '2026-03-31', particulars: 'Initial Cash Balance', amount: 11460 }
+     ];
+     if(borrowers.length > 0) activeId = borrowers[0].id;
+     saveData();
+   }
+ }, (error) => {
+   showToast('Database error: ' + error.message);
+ });
 }
 
+// Push local edits up to Cloud Firestore
 function saveData(){
- try{
- localStorage.setItem(STORAGE_KEY, JSON.stringify(borrowers));
- localStorage.setItem(CASH_KEY, JSON.stringify(cashLedger));
- }catch(e){
- showToast('Error saving data');
- }
+ db.collection("app_data").doc("ledger").set({
+   borrowers: borrowers,
+   cashLedger: cashLedger
+ }).catch((error) => {
+   showToast('Sync error: ' + error.message);
+ });
 }
 
 function downloadBackup(){
@@ -402,7 +425,6 @@ function restoreBackup(fileInput){
     cashLedger = data.cashLedger;
     if(borrowers.length > 0) activeId = borrowers[0].id;
     saveData();
-    render();
     showToast('Data recovered successfully!');
    } else {
     showToast('Invalid backup file');
@@ -480,7 +502,6 @@ function submitAddBorrower(){
  modal = null;
  currentTab = 'borrower';
  saveData();
- render();
  showToast('Borrower added');
 }
 
@@ -499,7 +520,6 @@ function submitAddPayment(){
  
  modal = null;
  saveData();
- render();
  showToast('Payment recorded');
 }
 
@@ -515,7 +535,6 @@ function submitInsertMonth(){
  }
  modal = null;
  saveData();
- render();
  showToast('Month added to schedule');
 }
 
@@ -531,7 +550,6 @@ function submitAddCash(){
  cashLedger.push({ id: uid(), date, particulars, amount });
  modal = null;
  saveData();
- render();
  showToast('Transaction recorded');
 }
 
@@ -547,7 +565,6 @@ function updateBorrowerField(field, value){
  
  b[field] = value;
  saveData();
- render();
  showToast('Updated');
 }
 
@@ -564,7 +581,6 @@ function updatePaymentAmount(dueDate, valueStr){
  b.payments.sort((a,c) => a.dueDate.localeCompare(c.dueDate));
  }
  saveData();
- render();
 }
 
 function updatePaymentDate(dueDate, dateStr){
@@ -574,7 +590,6 @@ function updatePaymentDate(dueDate, dateStr){
  if(p && dateStr){
  p.dateReceived = dateStr;
  saveData();
- render();
  }
 }
 
@@ -583,14 +598,12 @@ function deletePayment(dueDate){
  if(!b) return;
  b.payments = b.payments.filter(p => p.dueDate !== dueDate);
  saveData();
- render();
 }
 
 function deleteCashEntry(id){
  if(!confirm('Delete this cash entry?')) return;
  cashLedger = cashLedger.filter(c => c.id !== id);
  saveData();
- render();
 }
 
 function deleteBorrower(){
@@ -598,7 +611,6 @@ function deleteBorrower(){
  borrowers = borrowers.filter(b => b.id !== activeId);
  activeId = borrowers.length > 0 ? borrowers[0].id : null;
  saveData();
- render();
 }
 
 function selectBorrower(id){ 
@@ -695,7 +707,6 @@ function renderMonitoringTab(){
   return { borrower: b, sched, out, status, badgeClass, amountDue, currentMonthRow };
  });
 
- // Filter borrowers who are Unpaid or Partial AND either have a past due date OR match today's day of the month
  const pendingCollections = categorized.filter(item => {
   if (item.status !== 'Unpaid' && item.status !== 'Partial') return false;
   if (item.amountDue <= 0) return false;
@@ -1084,6 +1095,7 @@ function render(){
  `;
 }
 
+// Start Real-time Data Sync
 loadData();
 </script>
 </body>
