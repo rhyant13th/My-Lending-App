@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lending Operations & Cash Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+ :root{
+ --paper:#F6F1E4;
+ --paper-2:#EFE8D6;
+ --ink:#22301F;
+ --ink-soft:#5B6A55;
+ --rule:#D8CDAE;
+ --ledger-green:#1B3A2F;
+ --ledger-green-2:#254A3B;
+ --brass:#A6791F;
+ --brass-soft:#EADFC0;
+ --danger:#8C3A2B;
+ --danger-soft:#F1DCD3;
+ --ok:#2F5D3A;
+ --ok-soft:#DCE9D9;
+ --partial:#1D5288;
+ --partial-soft:#D9E8F5;
+ --warn:#8A6D1B;
+ --warn-soft:#F9F1D8;
+ }
+ *{box-sizing:border-box;}
+ html,body{margin:0;padding:0;}
+ body{background:var(--paper);color:var(--ink);font-family:'Inter',sans-serif;min-height:100vh;}
+ .app{display:grid;grid-template-columns:280px 1fr;min-height:100vh;}
+ @media (max-width: 820px){
+ .app{grid-template-columns:1fr;}
+ .sidebar{border-right:none;border-bottom:1px solid var(--rule);}
+ }
+
+ .sidebar{background:var(--ledger-green);color:#EFE8D6;padding:24px 18px;display:flex;flex-direction:column;gap:16px;}
+ .brand{font-family:'Fraunces',serif;font-size:22px;font-weight:600;color:#F6F1E4;}
+ .brand-sub{font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:#9FB3A0;margin-top:-10px;}
+ 
+ .nav-menu{display:flex;flex-direction:column;gap:6px;margin:10px 0;}
+ .nav-item{padding:10px 12px;border-radius:6px;cursor:pointer;font-size:13.5px;font-weight:500;color:#DFE8DE;display:flex;align-items:center;gap:8px;}
+ .nav-item:hover{background:rgba(255,255,255,0.08);}
+ .nav-item.active{background:rgba(234,223,192,0.18);color:#F6F1E4;font-weight:600;}
+
+ .summary{display:flex;flex-direction:column;gap:10px;padding:12px 0;border-top:1px solid rgba(255,255,255,0.14);border-bottom:1px solid rgba(255,255,255,0.14);}
+ .summary-row{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:#B9C8B7;}
+ .summary-row b{font-family:'IBM Plex Mono',monospace;font-size:13.5px;color:#F6F1E4;font-weight:500;}
+ 
+ .search{width:100%;padding:8px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.15);color:#F6F1E4;font-family:'Inter',sans-serif;font-size:12.5px;}
+ .search::placeholder{color:#8FA391;}
+ .search:focus{outline:1.5px solid var(--brass);}
+ 
+ .borrower-list{flex:1;overflow-y:auto;max-height:300px;display:flex;flex-direction:column;gap:2px;margin:0 -4px;}
+ .borrower-item{padding:8px 8px;border-radius:6px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px;}
+ .borrower-item:hover{background:rgba(255,255,255,0.06);}
+ .borrower-item.active{background:rgba(234,223,192,0.14);}
+ .borrower-name{font-size:13px;font-weight:500;color:#F6F1E4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+ .borrower-bal{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#C9B77A;white-space:nowrap;}
+ .borrower-bal.zero{color:#7FA085;}
+ 
+ .sidebar-actions{display:flex;gap:6px;}
+ .add-btn{flex:1;padding:10px;border-radius:6px;border:1px solid var(--brass);background:transparent;color:var(--brass-soft);font-family:'Inter',sans-serif;font-weight:500;font-size:13px;cursor:pointer;}
+ .add-btn:hover{background:rgba(166,121,31,0.18);}
+ .backup-btn{padding:10px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);background:transparent;color:#F6F1E4;font-size:14px;cursor:pointer;}
+ .backup-btn:hover{background:rgba(255,255,255,0.1);}
+
+ .main{padding:30px 36px;display:flex;flex-direction:column;gap:20px;}
+ .empty-state{margin:auto;text-align:center;color:var(--ink-soft);max-width:340px;}
+ .empty-state h2{font-family:'Fraunces',serif;font-weight:500;font-size:20px;color:var(--ink);margin:0 0 8px;}
+ .empty-state p{font-size:13.5px;line-height:1.6;margin:0 0 18px;}
+
+ .ledger-head{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;padding-bottom:14px;border-bottom:2px solid var(--ledger-green);}
+ .ledger-name{font-family:'Fraunces',serif;font-weight:600;font-size:24px;color:var(--ink);}
+ .ledger-meta{font-size:12.5px;color:var(--ink-soft);margin-top:4px;}
+ .ledger-actions{display:flex;gap:8px;flex-wrap:wrap;}
+ .btn{padding:8px 14px;border-radius:6px;border:1px solid var(--ledger-green);background:var(--ledger-green);color:#F6F1E4;font-family:'Inter',sans-serif;font-weight:500;font-size:13px;cursor:pointer;}
+ .btn:hover{background:var(--ledger-green-2);}
+ .btn.ghost{background:transparent;color:var(--ledger-green);}
+ .btn.ghost:hover{background:rgba(27,58,47,0.06);}
+ .btn.danger-outline{border-color:var(--danger);color:var(--danger);background:transparent;}
+ .btn.danger-outline:hover{background:var(--danger-soft);}
+
+ .loan-terms{display:flex;gap:28px;flex-wrap:wrap;padding:10px 0;}
+ .term{min-width:110px;}
+ .term-label{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-soft);margin-bottom:4px;}
+ .term-value{font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:500;color:var(--ink);}
+
+ .balance-block{display:flex;gap:32px;flex-wrap:wrap;padding:16px 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);}
+ .stat{min-width:130px;}
+ .stat-label{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-soft);margin-bottom:4px;}
+ .stat-value{font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:500;color:var(--ink);}
+ .stat-value.owed{color:var(--danger);}
+ .stat-value.clear{color:var(--ok);}
+ .stamp{display:inline-block;padding:4px 10px;border:2px solid currentColor;border-radius:3px;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:1.5px;transform:rotate(-2deg);}
+ .stamp.overdue{color:var(--danger);}
+ .stamp.current{color:var(--ok);}
+ .stamp.settled{color:var(--ink-soft);}
+ .stamp.partial{color:var(--warn);}
+
+ .status-legend{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:8px 0;font-size:11.5px;}
+ .legend-item{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:4px;font-weight:500;}
+ .legend-item.paid{background:var(--ok-soft);color:var(--ok);}
+ .legend-item.capital{background:var(--partial-soft);color:var(--partial);}
+ .legend-item.partial{background:var(--warn-soft);color:var(--warn);}
+ .legend-item.unpaid{background:var(--danger-soft);color:var(--danger);}
+
+ .section-title{font-family:'Fraunces',serif;font-size:16px;font-weight:600;color:var(--ink);margin:4px 0 2px;}
+
+ .table-wrap{overflow-x:auto;}
+ table.sched, table.monitoring-grid{width:100%;border-collapse:collapse;font-size:12.5px;min-width:820px;}
+ table.sched th, table.monitoring-grid th{text-align:right;font-size:10.5px;text-transform:uppercase;letter-spacing:0.6px;color:var(--ink-soft);font-weight:500;padding:7px 8px;border-bottom:1.5px solid var(--ledger-green);white-space:nowrap;}
+ table.sched th:first-child, table.sched td:first-child, table.monitoring-grid th:first-child, table.monitoring-grid td:first-child{text-align:left;}
+ table.sched td, table.monitoring-grid td{padding:8px 8px;border-bottom:1px solid var(--rule);color:var(--ink);text-align:right;font-family:'IBM Plex Mono',monospace;white-space:nowrap;}
+ 
+ table.sched tr.status-paid{background:rgba(47,93,58,0.06);}
+ table.sched tr.status-capital{background:rgba(29,82,136,0.06);}
+ table.sched tr.status-partial{background:rgba(138,109,27,0.06);}
+ table.sched tr.status-unpaid{background:rgba(140,58,43,0.06);}
+ table.sched tr:last-child td, table.monitoring-grid tr:last-child td{border-bottom:none;}
+
+ table.paylog{width:100%;border-collapse:collapse;font-size:13px;}
+ table.paylog th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:var(--ink-soft);font-weight:500;padding:7px 8px;border-bottom:1.5px solid var(--ledger-green);}
+ table.paylog td{padding:8px 8px;border-bottom:1px solid var(--rule);color:var(--ink);}
+ table.paylog td.amt{font-family:'IBM Plex Mono',monospace;text-align:right;}
+ .tx-del{background:none;border:none;cursor:pointer;color:var(--ink-soft);font-size:12px;padding:2px 6px;}
+ .tx-del:hover{color:var(--danger);}
+ .no-tx{color:var(--ink-soft);font-size:13px;font-style:italic;padding:12px 4px;}
+
+ .overlay{position:fixed;inset:0;background:rgba(27,30,25,0.4);display:flex;align-items:flex-start;justify-content:center;padding-top:60px;z-index:100;}
+ .modal{background:var(--paper);border-radius:10px;border:1px solid var(--rule);box-shadow:0 8px 28px rgba(0,0,0,0.18);width:100%;max-width:400px;max-height:85vh;overflow-y:auto;padding:22px 22px 20px;}
+ .modal h3{font-family:'Fraunces',serif;font-size:17px;font-weight:600;margin:0 0 14px;color:var(--ink);}
+ .field{margin-bottom:12px;}
+ .field label{display:block;font-size:12px;color:var(--ink-soft);margin-bottom:5px;}
+ .field input, .field select{width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--rule);background:#fff;font-family:'Inter',sans-serif;font-size:13.5px;color:var(--ink);}
+ .field input:focus, .field select:focus{outline:1.5px solid var(--ledger-green);}
+ .field-error{color:var(--danger);font-size:11.5px;margin-top:4px;}
+ .field-hint{color:var(--ink-soft);font-size:11.5px;margin-top:4px;}
+ .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;}
+ .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ledger-green);color:#F6F1E4;padding:10px 18px;border-radius:6px;font-size:13px;box-shadow:0 4px 14px rgba(0,0,0,0.2);z-index:200;}
+
+ .edit-hint{font-size:10.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.8px;margin:2px 0 12px;}
+ input.inline-edit{
+ border:1px solid transparent;
+ background:transparent;
+ border-radius:4px;
+ padding:2px 5px;
+ margin:-2px -5px;
+ font-family:inherit;
+ color:inherit;
+ width:100%;
+ }
+ input.inline-edit:hover{border-color:var(--rule);background:#fff;}
+ input.inline-edit:focus{border-color:var(--ledger-green);background:#fff;outline:none;}
+ input.name-edit{font-family:'Fraunces',serif;font-weight:600;font-size:24px;color:var(--ink);}
+ input.notes-edit{font-size:12.5px;color:var(--ink-soft);}
+ input.term-edit{font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:500;color:var(--ink);}
+ input.sched-edit{
+ font-family:'IBM Plex Mono',monospace;
+ font-size:12.5px;
+ text-align:right;
+ width:88px;
+ }
+ input.sched-edit.date-edit{width:120px;text-align:left;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+const STORAGE_KEY = 'lending_ledger_borrowers_v3';
+const CASH_KEY = 'lending_ledger_cash_v1';
+
+let currentTab = 'monitoring';
+let borrowers = [];
+let cashLedger = [];
+let activeId = null;
+let modal = null;
+let toastMsg = null;
+let toastTimer = null;
+let searchTerm = '';
+
+function fmtMoney(n){
+ const num = Math.round((Number(n) || 0) * 100) / 100;
+ return '\u20b1' + num.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+function fmtDate(iso){
+ if(!iso) return '\u2014';
+ const parts = iso.split('-');
+ if(parts.length !== 3) return iso;
+ const year = parseInt(parts[0], 10);
+ const month = parseInt(parts[1], 10) - 1;
+ const day = parseInt(parts[2], 10);
+ const d = new Date(year, month, day);
+ return d.toLocaleDateString('en-PH', {year:'numeric', month:'short', day:'numeric'});
+}
+
+function getCurrentMonthLabel(){
+ const d = new Date();
+ return d.toLocaleDateString('en-PH', {month:'long', year:'numeric'});
+}
+
+function todayISO(){ 
+ const d = new Date();
+ return d.toISOString().slice(0,10); 
+}
+
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+function addMonths(iso, n){
+ if(!iso) return todayISO();
+ const parts = iso.split('-');
+ let year = parseInt(parts[0], 10);
+ let month = parseInt(parts[1], 10) - 1;
+ let day = parseInt(parts[2], 10);
+
+ const d = new Date(year, month, day);
+ d.setDate(1);
+ d.setMonth(d.getMonth() + n);
+ const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+ d.setDate(Math.min(day, lastDay));
+ 
+ const y = d.getFullYear();
+ const m = String(d.getMonth() + 1).padStart(2, '0');
+ const dd = String(d.getDate()).padStart(2, '0');
+ return `${y}-${m}-${dd}`;
+}
+
+function computeSchedule(b){
+ const rows = [];
+ let beginningPrincipal = b.principal;
+ let carryUnpaid = 0;
+ const payMap = {};
+ (b.payments || []).forEach(p => { payMap[p.dueDate] = p; });
+
+ let dueDates = [];
+ const customDates = (b.customMonths || []).slice().sort();
+ 
+ const baseCount = Math.max(12, customDates.length);
+ let currDate = addMonths(b.dateLoaned, 1);
+ for(let i = 0; i < baseCount; i++){
+  if(!dueDates.includes(currDate)) dueDates.push(currDate);
+  currDate = addMonths(currDate, 1);
+ }
+
+ customDates.forEach(cd => {
+  if(!dueDates.includes(cd)) dueDates.push(cd);
+ });
+ (b.payments || []).forEach(p => {
+  if(!dueDates.includes(p.dueDate)) dueDates.push(p.dueDate);
+ });
+
+ dueDates.sort();
+
+ dueDates.forEach(dueDate => {
+  if (beginningPrincipal <= 0 && carryUnpaid <= 0) return;
+
+  const currentInterest = Math.round(beginningPrincipal * b.rate * 100) / 100;
+  const interestDue = currentInterest + carryUnpaid;
+  const totalDue = beginningPrincipal + interestDue;
+  const payment = payMap[dueDate] || null;
+
+  let principalPaid = 0, unpaidInterest = interestDue, endingPrincipal = beginningPrincipal;
+  let statusCode = 'unpaid';
+
+  if(payment && payment.amount > 0){
+   if(payment.amount >= totalDue){
+    statusCode = 'paid';
+    unpaidInterest = 0;
+    principalPaid = beginningPrincipal;
+   } else if(payment.amount > interestDue){
+    statusCode = 'capital';
+    unpaidInterest = 0;
+    principalPaid = payment.amount - interestDue;
+   } else if(payment.amount === interestDue){
+    statusCode = 'paid';
+    unpaidInterest = 0;
+    principalPaid = 0;
+   } else {
+    statusCode = 'partial';
+    unpaidInterest = interestDue - payment.amount;
+    principalPaid = 0;
+   }
+   endingPrincipal = Math.max(beginningPrincipal - principalPaid, 0);
+  }
+
+  rows.push({
+   dueDate, beginningPrincipal, rate: b.rate, currentInterest, totalDue,
+   payment, principalPaid, unpaidInterest, endingPrincipal, statusCode
+  });
+
+  beginningPrincipal = endingPrincipal;
+  carryUnpaid = unpaidInterest;
+ });
+
+ return rows;
+}
+
+function outstandingOf(b){
+ const sched = computeSchedule(b);
+ if(sched.length === 0) return {principal: b.principal, unpaid: 0, total: b.principal};
+ 
+ const todayYM = todayISO().slice(0, 7);
+ const currentOrPastRows = sched.filter(r => r.dueDate.slice(0, 7) <= todayYM);
+
+ if (currentOrPastRows.length === 0) {
+  return {principal: b.principal, unpaid: 0, total: b.principal};
+ }
+
+ const currentMonthRow = currentOrPastRows[currentOrPastRows.length - 1];
+ return {
+  principal: currentMonthRow.endingPrincipal,
+  unpaid: currentMonthRow.unpaidInterest,
+  total: currentMonthRow.endingPrincipal + currentMonthRow.unpaidInterest
+ };
+}
+
+function currentMonthStamp(b, sched){
+ const out = outstandingOf(b);
+ if(out.total <= 0) return {cls:'settled', label:'Settled'};
+
+ const currentYM = todayISO().slice(0, 7);
+ const currentMonthRow = sched.find(r => r.dueDate.startsWith(currentYM));
+
+ if(!currentMonthRow){
+  const pastRows = sched.filter(r => r.dueDate < todayISO());
+  const hasUnpaidPast = pastRows.some(r => r.statusCode === 'unpaid' || r.statusCode === 'partial');
+  if(hasUnpaidPast) return {cls:'overdue', label:`${getCurrentMonthLabel()}: Unpaid`};
+  return {cls:'current', label:`${getCurrentMonthLabel()}: Current`};
+ }
+
+ if(currentMonthRow.statusCode === 'paid') return {cls:'current', label:`${getCurrentMonthLabel()}: Paid`};
+ if(currentMonthRow.statusCode === 'capital') return {cls:'current', label:`${getCurrentMonthLabel()}: Capital Paid`};
+ if(currentMonthRow.statusCode === 'partial') return {cls:'partial', label:`${getCurrentMonthLabel()}: Partial`};
+ return {cls:'overdue', label:`${getCurrentMonthLabel()}: Unpaid`};
+}
+
+function recalculateCash(){
+ let running = 0;
+ cashLedger.forEach(c => {
+ running += Number(c.amount) || 0;
+ c.balance = running;
+ });
+ return running;
+}
+
+function loadData(){
+ try{
+ const savedB = localStorage.getItem(STORAGE_KEY);
+ borrowers = savedB ? JSON.parse(savedB) : [
+  { id: '1', name: 'KRISTIAN CASCALLA', principal: 35000, rate: 0.10, dateLoaned: '2025-09-17', createdAt: '2025-09-17', notes: '', payments: [], customMonths: [] },
+  { id: '2', name: 'DIANNE MESINA', principal: 5000, rate: 0.10, dateLoaned: '2025-09-19', createdAt: '2025-09-19', notes: '', payments: [], customMonths: [] }
+ ];
+ const savedC = localStorage.getItem(CASH_KEY);
+ cashLedger = savedC ? JSON.parse(savedC) : [
+  { id: 'c1', date: '2026-03-31', particulars: 'Initial Cash Balance', amount: 11460 }
+ ];
+ if(borrowers.length > 0 && !activeId) activeId = borrowers[0].id;
+ }catch(e){ 
+ borrowers = [];
+ cashLedger = [];
+ }
+ render();
+}
+
+function saveData(){
+ try{
+ localStorage.setItem(STORAGE_KEY, JSON.stringify(borrowers));
+ localStorage.setItem(CASH_KEY, JSON.stringify(cashLedger));
+ }catch(e){
+ showToast('Error saving data');
+ }
+}
+
+function downloadBackup(){
+ const backupData = {
+ timestamp: new Date().toISOString(),
+ borrowers,
+ cashLedger
+ };
+ const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
+ const dlAnchor = document.createElement('a');
+ dlAnchor.setAttribute("href", dataStr);
+ dlAnchor.setAttribute("download", `Lending_Backup_${todayISO()}.json`);
+ document.body.appendChild(dlAnchor);
+ dlAnchor.click();
+ dlAnchor.remove();
+ showToast('Backup file saved!');
+}
+
+function restoreBackup(fileInput){
+ const file = fileInput.files[0];
+ if(!file) return;
+ const reader = new FileReader();
+ reader.onload = function(e){
+  try{
+   const data = JSON.parse(e.target.result);
+   if(data.borrowers && data.cashLedger){
+    borrowers = data.borrowers;
+    cashLedger = data.cashLedger;
+    if(borrowers.length > 0) activeId = borrowers[0].id;
+    saveData();
+    render();
+    showToast('Data recovered successfully!');
+   } else {
+    showToast('Invalid backup file');
+   }
+  }catch(err){
+   showToast('Error reading backup file');
+  }
+ };
+ reader.readAsText(file);
+}
+
+function showToast(msg){
+ toastMsg = msg;
+ render();
+ clearTimeout(toastTimer);
+ toastTimer = setTimeout(() => { toastMsg = null; render(); }, 2200);
+}
+
+function openAddBorrower(){
+ modal = {type:'addBorrower', name:'', principal:'', rate:'10', dateLoaned: todayISO(), notes:'', error:''};
+ render();
+}
+
+function openAddPayment(){
+ const b = borrowers.find(x => x.id === activeId);
+ if(!b) return;
+ const sched = computeSchedule(b);
+ const nextUnpaid = sched.find(r => !r.payment);
+ const defaultDue = nextUnpaid ? nextUnpaid.dueDate : addMonths(b.dateLoaned, sched.length + 1);
+ modal = {type:'addPayment', dueDate: defaultDue, amount:'', dateReceived: todayISO(), error:''};
+ render();
+}
+
+function openInsertMonth(){
+ const b = borrowers.find(x => x.id === activeId);
+ if(!b) return;
+ const sched = computeSchedule(b);
+ const lastDate = sched.length > 0 ? sched[sched.length - 1].dueDate : b.dateLoaned;
+ const defaultMonth = addMonths(lastDate, 1);
+ modal = {type:'insertMonth', monthDate: defaultMonth, error:''};
+ render();
+}
+
+function openAddCash(){
+ modal = {type:'addCash', date: todayISO(), particulars:'', amount:'', error:''};
+ render();
+}
+
+function openBackupModal(){
+ modal = {type:'backupRestore'};
+ render();
+}
+
+function closeModal(){ modal = null; render(); }
+
+function submitAddBorrower(){
+ const name = document.getElementById('m-name').value.trim();
+ const principal = parseFloat(document.getElementById('m-principal').value);
+ const ratePct = parseFloat(document.getElementById('m-rate').value);
+ const dateLoaned = document.getElementById('m-date').value;
+ const notes = document.getElementById('m-notes').value.trim();
+ 
+ if(!name){ modal.error = 'Enter a borrower name'; render(); return; }
+ if(isNaN(principal) || principal <= 0){ modal.error = 'Enter a valid loan amount'; render(); return; }
+ if(isNaN(ratePct) || ratePct < 0){ modal.error = 'Enter monthly interest rate'; render(); return; }
+ if(!dateLoaned){ modal.error = 'Select date loaned'; render(); return; }
+
+ const b = {
+ id: uid(), name, notes,
+ principal, rate: ratePct / 100, dateLoaned,
+ createdAt: todayISO(), payments: [], customMonths: []
+ };
+ borrowers.push(b);
+ activeId = b.id;
+ modal = null;
+ currentTab = 'borrower';
+ saveData();
+ render();
+ showToast('Borrower added');
+}
+
+function submitAddPayment(){
+ const dueDate = document.getElementById('m-due').value;
+ const amount = parseFloat(document.getElementById('m-amount').value);
+ const dateReceived = document.getElementById('m-received').value || todayISO();
+ 
+ if(!dueDate){ modal.error = 'Select month due'; render(); return; }
+ if(isNaN(amount) || amount <= 0){ modal.error = 'Enter valid amount'; render(); return; }
+ 
+ const b = borrowers.find(x => x.id === activeId);
+ b.payments = (b.payments || []).filter(p => p.dueDate !== dueDate);
+ b.payments.push({id: uid(), dueDate, amount, dateReceived});
+ b.payments.sort((a,c) => a.dueDate.localeCompare(c.dueDate));
+ 
+ modal = null;
+ saveData();
+ render();
+ showToast('Payment recorded');
+}
+
+function submitInsertMonth(){
+ const monthDate = document.getElementById('m-custom-month').value;
+ if(!monthDate){ modal.error = 'Select date to insert'; render(); return; }
+ 
+ const b = borrowers.find(x => x.id === activeId);
+ if(!b.customMonths) b.customMonths = [];
+ if(!b.customMonths.includes(monthDate)){
+  b.customMonths.push(monthDate);
+  b.customMonths.sort();
+ }
+ modal = null;
+ saveData();
+ render();
+ showToast('Month added to schedule');
+}
+
+function submitAddCash(){
+ const date = document.getElementById('c-date').value;
+ const particulars = document.getElementById('c-particulars').value.trim();
+ const amount = parseFloat(document.getElementById('c-amount').value);
+
+ if(!date){ modal.error = 'Select transaction date'; render(); return; }
+ if(!particulars){ modal.error = 'Enter particulars'; render(); return; }
+ if(isNaN(amount)){ modal.error = 'Enter valid amount'; render(); return; }
+
+ cashLedger.push({ id: uid(), date, particulars, amount });
+ modal = null;
+ saveData();
+ render();
+ showToast('Transaction recorded');
+}
+
+function updateBorrowerField(field, value){
+ const b = borrowers.find(x => x.id === activeId);
+ if(!b) return;
+ if(field === 'name'){
+ value = String(value).trim();
+ if(!value){ showToast('Name cannot be empty'); render(); return; }
+ }
+ if(field === 'principal' && (isNaN(value) || value <= 0)) return;
+ if(field === 'rate' && (isNaN(value) || value < 0)) return;
+ 
+ b[field] = value;
+ saveData();
+ render();
+ showToast('Updated');
+}
+
+function updatePaymentAmount(dueDate, valueStr){
+ const b = borrowers.find(x => x.id === activeId);
+ if(!b) return;
+ const amount = parseFloat(valueStr);
+ if(isNaN(amount) || amount <= 0){
+ b.payments = (b.payments || []).filter(p => p.dueDate !== dueDate);
+ } else {
+ let p = (b.payments || []).find(p => p.dueDate === dueDate);
+ if(p){ p.amount = amount; } 
+ else { b.payments.push({id: uid(), dueDate, amount, dateReceived: dueDate}); }
+ b.payments.sort((a,c) => a.dueDate.localeCompare(c.dueDate));
+ }
+ saveData();
+ render();
+}
+
+function updatePaymentDate(dueDate, dateStr){
+ const b = borrowers.find(x => x.id === activeId);
+ if(!b) return;
+ const p = (b.payments || []).find(p => p.dueDate === dueDate);
+ if(p && dateStr){
+ p.dateReceived = dateStr;
+ saveData();
+ render();
+ }
+}
+
+function deletePayment(dueDate){
+ const b = borrowers.find(x => x.id === activeId);
+ if(!b) return;
+ b.payments = b.payments.filter(p => p.dueDate !== dueDate);
+ saveData();
+ render();
+}
+
+function deleteCashEntry(id){
+ if(!confirm('Delete this cash entry?')) return;
+ cashLedger = cashLedger.filter(c => c.id !== id);
+ saveData();
+ render();
+}
+
+function deleteBorrower(){
+ if(!confirm('Remove this borrower completely?')) return;
+ borrowers = borrowers.filter(b => b.id !== activeId);
+ activeId = borrowers.length > 0 ? borrowers[0].id : null;
+ saveData();
+ render();
+}
+
+function selectBorrower(id){ 
+ activeId = id; 
+ currentTab = 'borrower';
+ render(); 
+}
+
+function renderSidebar(){
+ const totals = borrowers.map(b => outstandingOf(b));
+ const totalOut = totals.reduce((s,o) => s + Math.max(o.total,0), 0);
+ const totalUnpaidInterest = totals.reduce((s,o) => s + Math.max(o.unpaid,0), 0);
+ const currentCash = recalculateCash();
+ const filtered = borrowers.filter(b => b.name.toLowerCase().includes(searchTerm.toLowerCase()));
+
+ return `
+ <div class="sidebar">
+ <div>
+ <div class="brand">Lending Manager</div>
+ <div class="brand-sub">Operations & Cash Ledger</div>
+ </div>
+
+ <div class="nav-menu">
+ <div class="nav-item ${currentTab === 'monitoring' ? 'active' : ''}" onclick="currentTab='monitoring'; render();">
+ 📊 Loan Monitoring
+ </div>
+ <div class="nav-item ${currentTab === 'borrower' ? 'active' : ''}" onclick="currentTab='borrower'; render();">
+ 👤 Borrower Schedule
+ </div>
+ <div class="nav-item ${currentTab === 'cash' ? 'active' : ''}" onclick="currentTab='cash'; render();">
+ 💵 Cash On Hand Ledger
+ </div>
+ </div>
+
+ <div class="summary">
+ <div class="summary-row"><span>Cash On Hand</span><b>${fmtMoney(currentCash)}</b></div>
+ <div class="summary-row"><span>Total Outstanding</span><b>${fmtMoney(totalOut)}</b></div>
+ <div class="summary-row"><span>Unpaid Interest</span><b>${fmtMoney(totalUnpaidInterest)}</b></div>
+ </div>
+
+ <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#9FB3A0;margin-top:4px;">Borrowers Directory</div>
+ <input class="search" placeholder="Search borrowers…" value="${escapeAttr(searchTerm)}" oninput="searchTerm=this.value; render();" />
+ 
+ <div class="borrower-list">
+ ${filtered.length === 0 ? `<div style="color:#9FB3A0;font-size:12.5px;padding:8px 4px;">No matches found.</div>` : filtered.map(b => {
+ const out = outstandingOf(b);
+ return `<div class="borrower-item ${b.id === activeId && currentTab === 'borrower' ? 'active' : ''}" onclick="selectBorrower('${b.id}')">
+ <span class="borrower-name">${escapeHtml(b.name)}</span>
+ <span class="borrower-bal ${out.total <= 0 ? 'zero' : ''}">${fmtMoney(out.total)}</span>
+ </div>`;
+ }).join('')}
+ </div>
+
+ <div class="sidebar-actions">
+  <button class="add-btn" onclick="openAddBorrower()">+ New Borrower</button>
+  <button class="backup-btn" onclick="openBackupModal()" title="Save Backup / Restore Data">💾</button>
+ </div>
+ </div>
+ `;
+}
+
+function renderMonitoringTab(){
+ return `
+ <div class="main">
+ <div class="ledger-head">
+ <div>
+ <div class="ledger-name">Loan Monitoring Grid</div>
+ <div class="ledger-meta">Monthly payment schedules across all borrowers</div>
+ </div>
+ <button class="btn" onclick="openAddBorrower()">+ Add Borrower</button>
+ </div>
+
+ <div class="status-legend">
+ <span>Status Key:</span>
+ <span class="legend-item paid">🟢 Fully Paid</span>
+ <span class="legend-item capital">🔵 Partial + Capital</span>
+ <span class="legend-item partial">🟡 Partial / Interest</span>
+ <span class="legend-item unpaid">🔴 Unpaid</span>
+ </div>
+
+ <div class="table-wrap" style="margin-top:6px;">
+ <table class="monitoring-grid">
+ <thead>
+ <tr>
+ <th>Borrower</th>
+ <th>Loan Amount</th>
+ <th>1st Pay</th><th>2nd Pay</th><th>3rd Pay</th>
+ <th>4th Pay</th><th>5th Pay</th><th>6th Pay</th>
+ <th>7th Pay</th><th>8th Pay</th><th>9th Pay</th>
+ <th>10th Pay</th><th>11th Pay</th><th>12th Pay</th>
+ </tr>
+ </thead>
+ <tbody>
+ ${borrowers.length === 0 ? `<tr><td colspan="14" style="text-align:center;padding:20px;color:var(--ink-soft);">No borrower records yet.</td></tr>` : 
+ borrowers.map(b => {
+ const sched = computeSchedule(b);
+ let slots = '';
+ for(let i = 0; i < 12; i++){
+ const row = sched[i];
+ if(row){
+ const isPaid = row.payment && row.payment.amount > 0;
+ const amtText = isPaid ? fmtMoney(row.payment.amount) : 'Unpaid';
+ let statusColor = 'color:var(--danger);';
+ if(row.statusCode === 'paid') statusColor = 'color:var(--ok);font-weight:600;';
+ else if(row.statusCode === 'capital') statusColor = 'color:var(--partial);font-weight:600;';
+ else if(row.statusCode === 'partial') statusColor = 'color:var(--warn);font-weight:600;';
+
+ slots += `<td style="${statusColor}"><div>${fmtDate(row.dueDate)}</div><small>${amtText}</small></td>`;
+ } else {
+ slots += `<td>\u2014</td>`;
+ }
+ }
+ return `
+ <tr>
+ <td><a href="#" onclick="selectBorrower('${b.id}'); return false;" style="color:var(--ledger-green);font-weight:600;text-decoration:none;">${escapeHtml(b.name)}</a></td>
+ <td>${fmtMoney(b.principal)}</td>
+ ${slots}
+ </tr>
+ `;
+ }).join('')}
+ </tbody>
+ </table>
+ </div>
+ </div>
+ `;
+}
+
+function renderCashTab(){
+ recalculateCash();
+ return `
+ <div class="main">
+ <div class="ledger-head">
+ <div>
+ <div class="ledger-name">Cash On Hand Ledger</div>
+ <div class="ledger-meta">Track all daily collections and cash disburse</div>
+ </div>
+ <button class="btn" onclick="openAddCash()">+ Add Cash Transaction</button>
+ </div>
+
+ <div class="table-wrap" style="margin-top:10px;">
+ <table class="paylog">
+ <thead>
+ <tr>
+ <th>Date</th>
+ <th>Particulars / Details</th>
+ <th style="text-align:right;">Amount (₱)</th>
+ <th style="text-align:right;">New Cash Balance</th>
+ <th></th>
+ </tr>
+ </thead>
+ <tbody>
+ ${cashLedger.length === 0 ? `<tr><td colspan="5" class="no-tx">No cash transactions recorded yet.</td></tr>` : 
+ cashLedger.map(c => `
+ <tr>
+ <td>${fmtDate(c.date)}</td>
+ <td><b>${escapeHtml(c.particulars)}</b></td>
+ <td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:600;color:${c.amount < 0 ? 'var(--danger)' : 'var(--ok)'}">
+ ${fmtMoney(c.amount)}
+ </td>
+ <td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:600;">
+ ${fmtMoney(c.balance)}
+ </td>
+ <td style="text-align:right;"><button class="tx-del" onclick="deleteCashEntry('${c.id}')">Delete</button></td>
+ </tr>
+ `).join('')}
+ </tbody>
+ </table>
+ </div>
+ </div>
+ `;
+}
+
+function renderBorrowerTab(){
+ if(!activeId || borrowers.length === 0){
+ return `
+ <div class="main">
+ <div class="empty-state">
+ <h2>Select a Borrower</h2>
+ <p>Select a borrower from the directory on the left or create a new loan record.</p>
+ <button class="btn" onclick="openAddBorrower()">+ New Borrower</button>
+ </div>
+ </div>
+ `;
+ }
+
+ const b = borrowers.find(x => x.id === activeId);
+ if(!b) return renderMonitoringTab();
+
+ const sched = computeSchedule(b);
+ const out = outstandingOf(b);
+ const monthStamp = currentMonthStamp(b, sched);
+
+ return `
+ <div class="main">
+ <div class="ledger-head">
+ <div style="flex:1;min-width:220px;">
+ <input class="inline-edit name-edit" value="${escapeAttr(b.name)}" onchange="updateBorrowerField('name', this.value)" aria-label="Borrower name" />
+ <div style="display:flex;align-items:baseline;gap:6px;margin-top:4px;">
+ <input class="inline-edit notes-edit" style="flex:1;" placeholder="Add notes (e.g. contact number)..." value="${escapeAttr(b.notes || '')}" onchange="updateBorrowerField('notes', this.value)" aria-label="Notes" />
+ <span class="ledger-meta" style="white-space:nowrap;">· Released ${fmtDate(b.dateLoaned)}</span>
+ </div>
+ </div>
+ <div class="ledger-actions">
+ <button class="btn ghost" onclick="openInsertMonth()">+ Insert Month</button>
+ <button class="btn" onclick="openAddPayment()">+ Record Payment</button>
+ </div>
+ </div>
+
+ <div class="loan-terms">
+ <div class="term">
+ <div class="term-label">Loan Amount (₱)</div>
+ <input class="inline-edit term-edit" type="number" min="0" step="0.01" value="${b.principal}" onchange="updateBorrowerField('principal', parseFloat(this.value))" />
+ </div>
+ <div class="term">
+ <div class="term-label">Monthly Interest (%)</div>
+ <input class="inline-edit term-edit" type="number" min="0" step="0.1" value="${Math.round(b.rate*1000)/10}" onchange="updateBorrowerField('rate', parseFloat(this.value)/100)" />
+ </div>
+ <div class="term">
+ <div class="term-label">Date Loaned</div>
+ <input class="inline-edit term-edit" type="date" style="font-size:14px;" value="${b.dateLoaned}" onchange="updateBorrowerField('dateLoaned', this.value)" />
+ </div>
+ </div>
+ <div class="edit-hint" style="margin-top:-10px;">Click any input field above to edit</div>
+
+ <div class="balance-block">
+ <div class="stat">
+ <div class="stat-label">Outstanding Principal</div>
+ <div class="stat-value ${out.principal > 0 ? 'owed' : 'clear'}">${fmtMoney(out.principal)}</div>
+ </div>
+ <div class="stat">
+ <div class="stat-label">Unpaid Interest</div>
+ <div class="stat-value ${out.unpaid > 0 ? 'owed' : 'clear'}" style="font-size:18px;">${fmtMoney(out.unpaid)}</div>
+ </div>
+ <div class="stat">
+ <div class="stat-label">Total Owed (Current Month)</div>
+ <div class="stat-value ${out.total > 0 ? 'owed' : 'clear'}">${fmtMoney(out.total)}</div>
+ </div>
+ <div class="stat">
+ <div class="stat-label">Current Status</div>
+ <span class="stamp ${monthStamp.cls}">${monthStamp.label}</span>
+ </div>
+ </div>
+
+ <div>
+ <div style="display:flex;justify-content:space-between;align-items:center;">
+  <div class="section-title">Monthly Schedule</div>
+  <div class="status-legend">
+   <span class="legend-item paid">🟢 Paid</span>
+   <span class="legend-item capital">🔵 Capital</span>
+   <span class="legend-item partial">🟡 Partial</span>
+   <span class="legend-item unpaid">🔴 Unpaid</span>
+  </div>
+ </div>
+ <div class="table-wrap">
+ <table class="sched">
+ <thead>
+ <tr>
+ <th>Month / Date</th><th>Beginning<br>Principal</th><th>Interest</th>
+ <th>Total Due</th><th>Actual<br>Payment</th><th>Date<br>Received</th><th>Principal<br>Paid</th>
+ <th>Unpaid<br>Interest</th><th>Ending<br>Principal</th>
+ </tr>
+ </thead>
+ <tbody>
+ ${sched.map(r => `
+ <tr class="status-${r.statusCode}">
+ <td>${fmtDate(r.dueDate)}</td>
+ <td>${fmtMoney(r.beginningPrincipal)}</td>
+ <td>${fmtMoney(r.currentInterest)}</td>
+ <td>${fmtMoney(r.totalDue)}</td>
+ <td class="amt-actual"><input class="inline-edit sched-edit" type="number" min="0" step="0.01" placeholder="\u2014" value="${r.payment ? r.payment.amount : ''}" onchange="updatePaymentAmount('${r.dueDate}', this.value)" /></td>
+ <td><input class="inline-edit sched-edit date-edit" type="date" value="${r.payment ? r.payment.dateReceived : ''}" onchange="updatePaymentDate('${r.dueDate}', this.value)" /></td>
+ <td>${fmtMoney(r.principalPaid)}</td>
+ <td class="${r.unpaidInterest > 0 ? 'unpaid-flag' : ''}">${fmtMoney(r.unpaidInterest)}</td>
+ <td>${fmtMoney(r.endingPrincipal)}</td>
+ </tr>
+ `).join('')}
+ </tbody>
+ </table>
+ </div>
+ </div>
+
+ <div style="padding-top:10px;">
+ <button class="btn danger-outline" onclick="deleteBorrower()">Remove Borrower Record</button>
+ </div>
+ </div>
+ `;
+}
+
+function renderModal(){
+ if(!modal) return '';
+ if(modal.type === 'backupRestore'){
+ return `
+ <div class="overlay" onclick="if(event.target===this) closeModal()">
+ <div class="modal">
+ <h3>Backup & Data Recovery</h3>
+ <div class="field" style="margin-bottom:18px;">
+  <label style="font-weight:600;color:var(--ink);">1. Export Backup File</label>
+  <p style="font-size:12px;color:var(--ink-soft);margin:4px 0 8px;">Download a full JSON backup of all borrowers, payment histories, and cash ledgers.</p>
+  <button class="btn" style="width:100%;" onclick="downloadBackup()">💾 Save Backup File</button>
+ </div>
+ <hr style="border:none;border-top:1px solid var(--rule);margin:16px 0;" />
+ <div class="field">
+  <label style="font-weight:600;color:var(--ink);">2. Recover / Restore Data</label>
+  <p style="font-size:12px;color:var(--ink-soft);margin:4px 0 8px;">Select a previously saved JSON backup file to restore deleted borrowers or cash entries.</p>
+  <input type="file" id="restore-file" accept=".json" onchange="restoreBackup(this)" />
+ </div>
+ <div class="modal-actions" style="margin-top:20px;">
+  <button class="btn ghost" onclick="closeModal()">Close</button>
+ </div>
+ </div>
+ </div>
+ `;
+ }
+ if(modal.type === 'addBorrower'){
+ return `
+ <div class="overlay" onclick="if(event.target===this) closeModal()">
+ <div class="modal">
+ <h3>New Borrower</h3>
+ <div class="field"><label>Borrower Name</label>
+ <input id="m-name" placeholder="Juan Dela Cruz" value="${escapeAttr(modal.name)}" /></div>
+ <div class="field"><label>Loan Amount (₱)</label>
+ <input id="m-principal" type="number" min="0" step="0.01" placeholder="35000" value="${escapeAttr(modal.principal)}" /></div>
+ <div class="field"><label>Monthly Interest Rate (%)</label>
+ <input id="m-rate" type="number" min="0" step="0.1" placeholder="10" value="${escapeAttr(modal.rate)}" /></div>
+ <div class="field"><label>Date Loaned</label>
+ <input id="m-date" type="date" value="${escapeAttr(modal.dateLoaned)}" /></div>
+ <div class="field"><label>Notes (Optional)</label>
+ <input id="m-notes" placeholder="Contact number, etc." value="${escapeAttr(modal.notes)}" /></div>
+ ${modal.error ? `<div class="field-error">${escapeHtml(modal.error)}</div>` : ''}
+ <div class="modal-actions">
+ <button class="btn ghost" onclick="closeModal()">Cancel</button>
+ <button class="btn" onclick="submitAddBorrower()">Save Borrower</button>
+ </div>
+ </div>
+ </div>
+ `;
+ }
+ if(modal.type === 'addPayment'){
+ const b = borrowers.find(x => x.id === activeId);
+ const sched = computeSchedule(b);
+ const dueOptions = sched.map(r => r.dueDate);
+ return `
+ <div class="overlay" onclick="if(event.target===this) closeModal()">
+ <div class="modal">
+ <h3>Record Payment</h3>
+ <div class="field"><label>Payment For Month</label>
+ <select id="m-due">
+ ${dueOptions.map(d => `<option value="${d}" ${d === modal.dueDate ? 'selected' : ''}>${fmtDate(d)}</option>`).join('')}
+ </select>
+ </div>
+ <div class="field"><label>Amount Paid (₱)</label>
+ <input id="m-amount" type="number" min="0" step="0.01" placeholder="3500" value="${escapeAttr(modal.amount)}" /></div>
+ <div class="field"><label>Date Received</label>
+ <input id="m-received" type="date" value="${escapeAttr(modal.dateReceived)}" /></div>
+ ${modal.error ? `<div class="field-error">${escapeHtml(modal.error)}</div>` : ''}
+ <div class="modal-actions">
+ <button class="btn ghost" onclick="closeModal()">Cancel</button>
+ <button class="btn" onclick="submitAddPayment()">Save Payment</button>
+ </div>
+ </div>
+ </div>
+ `;
+ }
+ if(modal.type === 'insertMonth'){
+ return `
+ <div class="overlay" onclick="if(event.target===this) closeModal()">
+ <div class="modal">
+ <h3>Insert Month to Schedule</h3>
+ <div class="field"><label>Select Due Date / Month</label>
+ <input id="m-custom-month" type="date" value="${escapeAttr(modal.monthDate)}" />
+ <div class="field-hint">Select a date for the additional payment schedule row.</div>
+ </div>
+ ${modal.error ? `<div class="field-error">${escapeHtml(modal.error)}</div>` : ''}
+ <div class="modal-actions">
+ <button class="btn ghost" onclick="closeModal()">Cancel</button>
+ <button class="btn" onclick="submitInsertMonth()">Insert Month</button>
+ </div>
+ </div>
+ </div>
+ `;
+ }
+ if(modal.type === 'addCash'){
+ return `
+ <div class="overlay" onclick="if(event.target===this) closeModal()">
+ <div class="modal">
+ <h3>Add Cash Entry</h3>
+ <div class="field"><label>Date</label>
+ <input id="c-date" type="date" value="${escapeAttr(modal.date)}" /></div>
+ <div class="field"><label>Particulars / Details</label>
+ <input id="c-particulars" placeholder="e.g. Interest Payment, Cash Released" value="${escapeAttr(modal.particulars)}" /></div>
+ <div class="field"><label>Amount (₱)</label>
+ <input id="c-amount" type="number" step="0.01" placeholder="Use (-) for cash out" value="${escapeAttr(modal.amount)}" />
+ <div class="field-hint">Use negative values (e.g. -5000) for loans released or cash expenses.</div></div>
+ ${modal.error ? `<div class="field-error">${escapeHtml(modal.error)}</div>` : ''}
+ <div class="modal-actions">
+ <button class="btn ghost" onclick="closeModal()">Cancel</button>
+ <button class="btn" onclick="submitAddCash()">Record Transaction</button>
+ </div>
+ </div>
+ </div>
+ `;
+ }
+ return '';
+}
+
+function escapeHtml(s){
+ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function escapeAttr(s){ return escapeHtml(s); }
+
+function render(){
+ const root = document.getElementById('root');
+ let mainView = '';
+ if(currentTab === 'monitoring') mainView = renderMonitoringTab();
+ else if(currentTab === 'cash') mainView = renderCashTab();
+ else mainView = renderBorrowerTab();
+
+ root.innerHTML = `
+ <div class="app">
+ ${renderSidebar()}
+ ${mainView}
+ ${renderModal()}
+ </div>
+ ${toastMsg ? `<div class="toast">${escapeHtml(toastMsg)}</div>` : ''}
+ `;
+}
+
+loadData();
+</script>
+</body>
+</html>
