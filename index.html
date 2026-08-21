@@ -664,67 +664,112 @@ function renderSidebar(){
 }
 
 function renderMonitoringTab(){
+ const currentYM = todayISO().slice(0, 7);
+ const todayDay = parseInt(todayISO().split('-')[2], 10);
+ const currentMonthName = getCurrentMonthLabel();
+
+ const categorized = borrowers.map(b => {
+  const sched = computeSchedule(b);
+  const out = outstandingOf(b);
+  const currentMonthRow = sched.find(r => r.dueDate.startsWith(currentYM));
+  
+  let status = 'Unpaid';
+  let badgeClass = 'legend-item unpaid';
+  let amountDue = out.total;
+
+  if (out.total <= 0) {
+   status = 'Settled';
+   badgeClass = 'legend-item paid';
+   amountDue = 0;
+  } else if (currentMonthRow) {
+   if (currentMonthRow.statusCode === 'paid') {
+    status = 'Paid';
+    badgeClass = 'legend-item paid';
+   } else if (currentMonthRow.statusCode === 'capital') {
+    status = 'Capital Paid';
+    badgeClass = 'legend-item capital';
+   } else if (currentMonthRow.statusCode === 'partial') {
+    status = 'Partial';
+    badgeClass = 'legend-item partial';
+   }
+  }
+
+  return { borrower: b, sched, out, status, badgeClass, amountDue, currentMonthRow };
+ });
+
+ // Filter borrowers who are Unpaid or Partial AND whose due date matches today's day of the month
+ const dueThisMonth = categorized.filter(item => {
+  if (item.status !== 'Unpaid' && item.status !== 'Partial') return false;
+  
+  const dueDateStr = item.currentMonthRow ? item.currentMonthRow.dueDate : item.borrower.dateLoaned;
+  const dueDay = parseInt(dueDateStr.split('-')[2], 10);
+  
+  return dueDay === todayDay;
+ });
+
  return `
  <div class="main">
- <div class="ledger-head">
- <div>
- <div class="ledger-name">Loan Monitoring Grid</div>
- <div class="ledger-meta">Monthly payment schedules across all borrowers</div>
- </div>
- <button class="btn" onclick="openAddBorrower()">+ Add Borrower</button>
- </div>
+  <div class="ledger-head">
+   <div>
+    <div class="ledger-name">Loan Monitoring Overview</div>
+    <div class="ledger-meta">Current Month Status: <b>${currentMonthName}</b></div>
+   </div>
+   <button class="btn" onclick="openAddBorrower()">+ Add Borrower</button>
+  </div>
 
- <div class="status-legend">
- <span>Status Key:</span>
- <span class="legend-item paid">🟢 Fully Paid</span>
- <span class="legend-item capital">🔵 Partial + Capital</span>
- <span class="legend-item partial">🟡 Partial / Interest</span>
- <span class="legend-item unpaid">🔴 Unpaid</span>
- </div>
+  <div style="background:var(--paper-2); padding:16px; border-radius:8px; border:1px solid var(--rule);">
+   <div style="font-weight:600; font-size:14px; margin-bottom:10px; color:var(--danger);">
+    ⚠️ Pending Collections for Today (${dueThisMonth.length})
+   </div>
+   ${dueThisMonth.length === 0 
+     ? `<div style="font-size:13px; color:var(--ok); font-weight:500;">🎉 No collections due for today!</div>`
+     : `<div style="display:flex; gap:10px; flex-wrap:wrap;">
+         ${dueThisMonth.map(item => `
+           <div style="background:#fff; border:1px solid var(--rule); padding:8px 12px; border-radius:6px; flex:1; min-width:180px;">
+            <div style="font-weight:600; font-size:13px;">${escapeHtml(item.borrower.name)}</div>
+            <div style="font-size:12px; color:var(--ink-soft);">Due Amount: <b style="color:var(--danger);">${fmtMoney(item.amountDue)}</b></div>
+            <button class="btn ghost" style="padding:2px 6px; font-size:11px; margin-top:6px;" onclick="selectBorrower('${item.borrower.id}')">View Schedule</button>
+           </div>
+         `).join('')}
+        </div>`
+   }
+  </div>
 
- <div class="table-wrap" style="margin-top:6px;">
- <table class="monitoring-grid">
- <thead>
- <tr>
- <th>Borrower</th>
- <th>Loan Amount</th>
- <th>1st Pay</th><th>2nd Pay</th><th>3rd Pay</th>
- <th>4th Pay</th><th>5th Pay</th><th>6th Pay</th>
- <th>7th Pay</th><th>8th Pay</th><th>9th Pay</th>
- <th>10th Pay</th><th>11th Pay</th><th>12th Pay</th>
- </tr>
- </thead>
- <tbody>
- ${borrowers.length === 0 ? `<tr><td colspan="14" style="text-align:center;padding:20px;color:var(--ink-soft);">No borrower records yet.</td></tr>` : 
- borrowers.map(b => {
- const sched = computeSchedule(b);
- let slots = '';
- for(let i = 0; i < 12; i++){
- const row = sched[i];
- if(row){
- const isPaid = row.payment && row.payment.amount > 0;
- const amtText = isPaid ? fmtMoney(row.payment.amount) : 'Unpaid';
- let statusColor = 'color:var(--danger);';
- if(row.statusCode === 'paid') statusColor = 'color:var(--ok);font-weight:600;';
- else if(row.statusCode === 'capital') statusColor = 'color:var(--partial);font-weight:600;';
- else if(row.statusCode === 'partial') statusColor = 'color:var(--warn);font-weight:600;';
+  <div class="status-legend" style="margin-top:12px;">
+   <span>Status Key:</span>
+   <span class="legend-item paid">🟢 Fully Paid</span>
+   <span class="legend-item capital">🔵 Partial + Capital</span>
+   <span class="legend-item partial">🟡 Partial / Interest</span>
+   <span class="legend-item unpaid">🔴 Unpaid</span>
+  </div>
 
- slots += `<td style="${statusColor}"><div>${fmtDate(row.dueDate)}</div><small>${amtText}</small></td>`;
- } else {
- slots += `<td>\u2014</td>`;
- }
- }
- return `
- <tr>
- <td><a href="#" onclick="selectBorrower('${b.id}'); return false;" style="color:var(--ledger-green);font-weight:600;text-decoration:none;">${escapeHtml(b.name)}</a></td>
- <td>${fmtMoney(b.principal)}</td>
- ${slots}
- </tr>
- `;
- }).join('')}
- </tbody>
- </table>
- </div>
+  <div class="table-wrap" style="margin-top:6px;">
+   <table class="monitoring-grid">
+    <thead>
+     <tr>
+      <th>Borrower</th>
+      <th>Loan Amount</th>
+      <th>Current Month Status</th>
+      <th>Total Owed</th>
+      <th>Action</th>
+     </tr>
+    </thead>
+    <tbody>
+     ${categorized.length === 0 ? `<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--ink-soft);">No borrower records yet.</td></tr>` : 
+     categorized.map(item => `
+      <tr>
+       <td><a href="#" onclick="selectBorrower('${item.borrower.id}'); return false;" style="color:var(--ledger-green);font-weight:600;text-decoration:none;">${escapeHtml(item.borrower.name)}</a></td>
+       <td>${fmtMoney(item.borrower.principal)}</td>
+       <td><span class="${item.badgeClass}">${item.status}</span></td>
+       <td style="font-weight:600; color:${item.amountDue > 0 ? 'var(--danger)' : 'var(--ok)'};">${fmtMoney(item.amountDue)}</td>
+       <td>
+        <button class="btn ghost" style="padding:4px 8px; font-size:11px;" onclick="selectBorrower('${item.borrower.id}')">Open Ledger</button>
+       </td>
+      </tr>
+     `).join('')}
+    </tbody>
+   </table>
+  </div>
  </div>
  `;
 }
