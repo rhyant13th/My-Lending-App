@@ -682,6 +682,7 @@ function renderMonitoringTab(){
   const sched = computeSchedule(b);
   const out = outstandingOf(b);
   const currentMonthRow = sched.find(r => r.dueDate.startsWith(currentYM));
+  const pastDueRow = sched.find(r => r.dueDate < todayDate && (r.statusCode === 'unpaid' || r.statusCode === 'partial'));
   
   let status = 'Unpaid';
   let badgeClass = 'legend-item unpaid';
@@ -704,17 +705,17 @@ function renderMonitoringTab(){
    }
   }
 
-  return { borrower: b, sched, out, status, badgeClass, amountDue, currentMonthRow };
+  return { borrower: b, sched, out, status, badgeClass, amountDue, currentMonthRow, pastDueRow };
  });
 
  const pendingCollections = categorized.filter(item => {
   if (item.status !== 'Unpaid' && item.status !== 'Partial') return false;
   if (item.amountDue <= 0) return false;
 
-  const dueDateStr = item.currentMonthRow ? item.currentMonthRow.dueDate : item.borrower.dateLoaned;
+  const dueDateStr = item.pastDueRow ? item.pastDueRow.dueDate : (item.currentMonthRow ? item.currentMonthRow.dueDate : item.borrower.dateLoaned);
   const dueDay = parseInt(dueDateStr.split('-')[2], 10);
 
-  const isPastDue = dueDateStr < todayDate;
+  const isPastDue = !!item.pastDueRow || dueDateStr < todayDate;
   const isDueToday = dueDay === todayDay;
 
   return isPastDue || isDueToday;
@@ -738,8 +739,8 @@ function renderMonitoringTab(){
      ? `<div style="font-size:13px; color:var(--ok); font-weight:500;">🎉 No pending or past due collections!</div>`
      : `<div style="display:flex; gap:10px; flex-wrap:wrap;">
          ${pendingCollections.map(item => {
-           const dueDateStr = item.currentMonthRow ? item.currentMonthRow.dueDate : item.borrower.dateLoaned;
-           const isPastDue = dueDateStr < todayDate;
+           const dueDateStr = item.pastDueRow ? item.pastDueRow.dueDate : (item.currentMonthRow ? item.currentMonthRow.dueDate : item.borrower.dateLoaned);
+           const isPastDue = !!item.pastDueRow || dueDateStr < todayDate;
            return `
            <div style="background:#fff; border:1px solid var(--rule); padding:8px 12px; border-radius:6px; flex:1; min-width:180px;">
             <div style="display:flex; justify-space-between; align-items:center;">
